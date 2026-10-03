@@ -1,5 +1,5 @@
 import { API_BASE_URL, USE_MOCK_API } from "./apiConfig";
-import { readAttribution } from "@/utils/growth";
+import { readAttribution, getOrCreateSessionId } from "@/utils/growth";
 
 export type TrackingEventName =
   | "page_view"
@@ -9,6 +9,8 @@ export type TrackingEventName =
   | "registration_abandoned"
   | "share_whatsapp"
   | "referral_copied";
+
+const sentSessionEvents = new Set<string>();
 
 export async function sendAnalyticsEvent(
   event: TrackingEventName,
@@ -33,9 +35,18 @@ export async function sendAnalyticsEvent(
   try {
     const storage = typeof window !== "undefined" ? window.localStorage : null;
     const attribution = storage ? readAttribution(storage) : {};
+    const sessionId = getOrCreateSessionId();
+
+    // Client-side deduplication per session for funnel metrics
+    const eventKey = `${sessionId}:${backendEvent}`;
+    if ((backendEvent === "registration_started" || backendEvent === "registration_completed") && sentSessionEvents.has(eventKey)) {
+      return;
+    }
+    sentSessionEvents.add(eventKey);
 
     const payload = {
       event_name: backendEvent,
+      session_id: sessionId,
       source: attribution.utm_source || (properties.cta_source as string) || "direct",
       medium: attribution.utm_medium || "web",
       campaign: attribution.utm_campaign || "ai60",

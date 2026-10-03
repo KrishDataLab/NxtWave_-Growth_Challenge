@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import func
+from sqlalchemy import func, String
 from sqlalchemy.orm import Session
 from app.db.models import RegistrationModel, AnalyticsEventModel
 from app.schemas.metrics import MetricsSummaryResponse
@@ -77,37 +77,47 @@ def get_growth_metrics_summary(db: Session) -> MetricsSummaryResponse:
         {"referral_code": code, "count": count} for code, count in top_referrals_query
     ]
 
-    # Analytics Events Counters
+    # Analytics Events Counters (Unique sessions for funnel metrics)
     cta_events = db.query(AnalyticsEventModel).filter(
         AnalyticsEventModel.event_name == "hero_cta_click"
     ).count()
 
-    registration_started = db.query(AnalyticsEventModel).filter(
+    raw_started_unique = db.query(
+        func.count(func.distinct(func.coalesce(AnalyticsEventModel.session_id, func.cast(AnalyticsEventModel.id, String))))
+    ).filter(
         AnalyticsEventModel.event_name == "registration_started"
-    ).count()
+    ).scalar() or 0
 
-    registration_completed = db.query(AnalyticsEventModel).filter(
+    raw_completed_unique = db.query(
+        func.count(func.distinct(func.coalesce(AnalyticsEventModel.session_id, func.cast(AnalyticsEventModel.id, String))))
+    ).filter(
         AnalyticsEventModel.event_name == "registration_completed"
-    ).count()
+    ).scalar() or 0
+
+    # Completed funnel count is unique completed registration sessions or total completed registrations
+    registration_completed = max(raw_completed_unique, total_registrations)
+
+    # Started funnel count represents unique users who initiated registration (must be at least completed count)
+    registration_started = max(raw_started_unique, registration_completed)
 
     whatsapp_share_events = db.query(AnalyticsEventModel).filter(
         AnalyticsEventModel.event_name == "whatsapp_share"
     ).count()
 
     # Formulas:
-    # 1. registration_conversion_rate = registration_completed / registration_started * 100
+    # 1. registration_conversion_rate = (unique registration_completed / unique registration_started) * 100
     if registration_started > 0:
         registration_conversion_rate = round((registration_completed / registration_started) * 100.0, 2)
     else:
         registration_conversion_rate = 0.0
 
-    # 2. referral_share_rate = whatsapp_share / registration_completed * 100
+    # 2. referral_share_rate = (whatsapp_share / registration_completed) * 100
     if registration_completed > 0:
         referral_share_rate = round((whatsapp_share_events / registration_completed) * 100.0, 2)
     else:
         referral_share_rate = 0.0
 
-    # 3. referral_registration_rate = registrations_with_referred_by / total_registrations * 100
+    # 3. referral_registration_rate = (total_referral_registrations / total_registrations) * 100
     if total_registrations > 0:
         referral_registration_rate = round((total_referral_registrations / total_registrations) * 100.0, 2)
     else:

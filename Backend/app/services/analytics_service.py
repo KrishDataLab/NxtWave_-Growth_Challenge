@@ -3,6 +3,19 @@ from app.db.models import AnalyticsEventModel
 from app.schemas.analytics import AnalyticsEventCreate, AnalyticsEventResponse
 
 def record_analytics_event(db: Session, event_in: AnalyticsEventCreate) -> AnalyticsEventResponse:
+    # Backend safety: deduplicate single-instance funnel events per session
+    if event_in.session_id and event_in.event_name in ("registration_started", "registration_completed"):
+        existing = db.query(AnalyticsEventModel).filter(
+            AnalyticsEventModel.event_name == event_in.event_name,
+            AnalyticsEventModel.session_id == event_in.session_id
+        ).first()
+        if existing:
+            return AnalyticsEventResponse(
+                success=True,
+                event_id=str(existing.id),
+                message="Event recorded successfully"
+            )
+
     event_model = AnalyticsEventModel(
         event_name=event_in.event_name,
         session_id=event_in.session_id,

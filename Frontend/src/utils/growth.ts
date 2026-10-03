@@ -14,6 +14,21 @@ export type Attribution = {
 const ATTRIBUTION_KEY = "ai60_attribution";
 const SUBMISSIONS_KEY = "ai60_demo_submissions";
 const REFERRAL_KEY = "ai60_referral_code";
+const SESSION_KEY = "ai60_session_id";
+
+export function getOrCreateSessionId(storage?: Pick<Storage, "getItem" | "setItem">): string {
+  try {
+    const s = storage || (typeof window !== "undefined" ? window.sessionStorage : null);
+    if (!s) return "sess_" + Date.now();
+    const existing = s.getItem(SESSION_KEY);
+    if (existing) return existing;
+    const newId = "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
+    s.setItem(SESSION_KEY, newId);
+    return newId;
+  } catch {
+    return "sess_" + Date.now();
+  }
+}
 
 export function trackEvent(event: TrackingEvent, properties: Record<string, unknown> = {}) {
   sendAnalyticsEvent(event, properties);
