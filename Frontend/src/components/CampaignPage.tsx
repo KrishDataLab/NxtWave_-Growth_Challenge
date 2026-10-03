@@ -7,6 +7,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { RegistrationForm } from "@/components/RegistrationForm";
+import { VideoDemoSection } from "@/components/VideoDemoSection";
 import { faqs, timeline, workshopConfig } from "@/data/workshopConfig";
 import { buildWhatsAppUrl, captureAttribution, trackEvent, type CtaSource } from "@/utils/growth";
 
@@ -40,6 +41,7 @@ export function CampaignPage() {
         <ProblemSection />
         <TimelineSection />
         <ProjectPreview onRegister={() => goToRegistration("project_preview")} />
+        <VideoDemoSection onRegister={() => goToRegistration("project_preview")} />
         <Benefits />
         <Credibility />
         <Audience />
