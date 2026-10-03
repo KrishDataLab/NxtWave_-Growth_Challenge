@@ -6,12 +6,11 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"])
-def diagnostic_handler(path: str = ""):
+@app.get("/api/v1/health")
+def diagnostic_health():
     diag = {}
     
     try:
@@ -24,15 +23,19 @@ def diagnostic_handler(path: str = ""):
     try:
         from app.db.database import engine, Base
         diag["database"] = "OK"
-        diag["db_url_type"] = str(engine.url.drivername)
+        diag["db_driver"] = str(engine.url.drivername)
     except Exception as e:
+        import traceback
         diag["database"] = f"FAIL: {e}"
+        diag["database_tb"] = traceback.format_exc().splitlines()
 
     try:
         from app.api import api_router
         diag["api_router"] = "OK"
     except Exception as e:
+        import traceback
         diag["api_router"] = f"FAIL: {e}"
+        diag["api_router_tb"] = traceback.format_exc().splitlines()
 
     try:
         from app.main import app as real_app
@@ -40,6 +43,6 @@ def diagnostic_handler(path: str = ""):
     except Exception as e:
         import traceback
         diag["main_import"] = f"FAIL: {e}"
-        diag["traceback"] = traceback.format_exc().splitlines()
+        diag["main_import_tb"] = traceback.format_exc().splitlines()
 
-    return JSONResponse(content={"status": "diagnostic", "path": path, "results": diag})
+    return {"status": "diagnostic", "results": diag}
