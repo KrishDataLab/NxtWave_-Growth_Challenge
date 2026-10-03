@@ -39,3 +39,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Local directory junction
+app/
+

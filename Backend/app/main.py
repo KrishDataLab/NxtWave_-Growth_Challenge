@@ -13,8 +13,11 @@ from app.api import api_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nxtwave_growth_backend")
 
-# Create database tables automatically on startup if using SQLite
-Base.metadata.create_all(bind=engine)
+# Create database tables automatically on startup
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    logger.warning(f"Database table creation deferred: {e}")
 
 app = FastAPI(
     title="NxtWave Growth Challenge API",

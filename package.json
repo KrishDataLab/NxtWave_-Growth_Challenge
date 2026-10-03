@@ -3,6 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "cd Frontend && npm install && npm run build"
+    "build": "cd Frontend && npm install --ignore-scripts=false && npm run build"
   }
 }
