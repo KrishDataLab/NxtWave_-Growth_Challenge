@@ -1,14 +1,22 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
-# Configure SQLite connect_args if using SQLite
+db_url = settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+if db_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+    # On serverless environment (e.g. Vercel), redirect SQLite file to writable /tmp directory
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        if "./" in db_url:
+            db_url = "sqlite:////tmp/nxtwave_growth.db"
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    db_url,
     connect_args=connect_args,
     pool_pre_ping=True
 )
