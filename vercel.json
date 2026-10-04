@@ -1,6 +1,12 @@
 {
   "buildCommand": "cd Frontend && npm install --ignore-scripts=false && npm run build",
   "outputDirectory": "Frontend/dist",
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.11",
+      "includeFiles": "Backend/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
