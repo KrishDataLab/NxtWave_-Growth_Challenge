@@ -1,10 +1,5 @@
 {
   "buildCommand": "cd Frontend && npm install --ignore-scripts=false && npm run build",
-  "functions": {
-    "api/index.py": {
-      "includeFiles": "Backend/**"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
