@@ -112,7 +112,41 @@ function AnnouncementBar() {
 }
 
 function Navbar({ menuOpen, setMenuOpen, onOpenAdmin }: { menuOpen: boolean; setMenuOpen: (value: boolean) => void; onOpenAdmin: () => void }) {
-  return <header className="site-header"><div className="nav-shell"><Brand /><nav className="hidden items-center gap-7 lg:flex" aria-label="Primary navigation">{navItems.map(([label, id]) => <a key={id} href={`#${id}`} className="nav-link">{label}</a>)}<button onClick={onOpenAdmin} className="nav-link inline-flex items-center gap-1.5 cursor-pointer"><Lock className="size-3.5 text-accent" /> Admin</button></nav><div className="flex shrink-0 items-center gap-2"><Button variant="ghost" size="icon" className="lg:hidden" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</Button></div></div>{menuOpen ? <nav className="mobile-menu" aria-label="Mobile navigation">{navItems.map(([label, id]) => <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>{label}<ChevronRight /></a>)}<button className="flex items-center gap-2 p-3 text-xs text-muted-foreground" onClick={() => { setMenuOpen(false); onOpenAdmin(); }}><Lock className="size-3.5 text-accent" /> Admin Dashboard</button></nav> : null}</header>;
+  return (
+    <header className="site-header">
+      <div className="nav-shell">
+        <Brand />
+        <nav className="hidden items-center gap-6 md:flex" aria-label="Primary navigation">
+          {navItems.map(([label, id]) => (
+            <a key={id} href={`#${id}`} className="nav-link">
+              {label}
+            </a>
+          ))}
+          <button onClick={onOpenAdmin} className="nav-link inline-flex items-center gap-1.5 cursor-pointer font-bold text-foreground hover:text-accent transition-colors">
+            <Lock className="size-3.5 text-accent" /> Admin
+          </button>
+        </nav>
+        <div className="flex shrink-0 items-center gap-2 md:hidden">
+          <Button variant="ghost" size="icon" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+            {menuOpen ? <X /> : <Menu />}
+          </Button>
+        </div>
+      </div>
+      {menuOpen ? (
+        <nav className="mobile-menu md:hidden" aria-label="Mobile navigation">
+          {navItems.map(([label, id]) => (
+            <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>
+              {label}
+              <ChevronRight />
+            </a>
+          ))}
+          <button className="flex items-center gap-2 p-3 text-xs font-bold text-foreground hover:text-accent" onClick={() => { setMenuOpen(false); onOpenAdmin(); }}>
+            <Lock className="size-3.5 text-accent" /> Admin Dashboard
+          </button>
+        </nav>
+      ) : null}
+    </header>
+  );
 }
 
 function Hero({ onRegister }: { onRegister: () => void }) {
