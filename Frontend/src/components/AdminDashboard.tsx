@@ -95,7 +95,7 @@ export function AdminDashboard({ onClose }: { onClose: () => void }) {
               <label className="text-xs font-semibold text-muted-foreground">Admin Access Password</label>
               <Input
                 type="password"
-                placeholder="Enter password (default: nxtwave_admin_2026)"
+                placeholder="Enter admin password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="mt-1.5"

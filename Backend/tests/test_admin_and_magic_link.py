@@ -1,5 +1,7 @@
+import os
+import time
 import pytest
-from app.db.models import RegistrationModel, RegistrationVerificationModel, AnalyticsEventModel
+from app.db.models import RegistrationModel
 
 def test_magic_link_auto_verification_flow(client, db_session):
     start_payload = {
@@ -29,22 +31,36 @@ def test_magic_link_auto_verification_flow(client, db_session):
     assert reg_db is not None
     assert reg_db.verification_method == "magic_link"
 
-def test_admin_login_and_unauthorized_access(client):
+def test_admin_login_and_unauthorized_access(client, monkeypatch):
+    test_pass = "secure_admin_pass_pytest_123"
+    monkeypatch.setenv("ADMIN_PASSWORD", test_pass)
+    monkeypatch.setenv("ADMIN_SESSION_SECRET", "test_session_secret_key_32bytes_long")
+
     # Bad login
     res1 = client.post("/api/v1/admin/login", json={"password": "wrongpassword"})
     assert res1.status_code == 401
 
     # Good login
-    res2 = client.post("/api/v1/admin/login", json={"password": "nxtwave_admin_2026"})
+    res2 = client.post("/api/v1/admin/login", json={"password": test_pass})
     assert res2.status_code == 200
     token = res2.json()["token"]
-    assert token.startswith("admin_session_")
+    assert len(token.split(".")) == 3
 
     # Dashboard without token -> 401
     dash_unauth = client.get("/api/v1/admin/dashboard")
     assert dash_unauth.status_code == 401
 
-    # Dashboard with token -> 200
+    # Dashboard with invalid token -> 401
+    dash_invalid = client.get("/api/v1/admin/dashboard", headers={"X-Admin-Token": "invalid.token.here"})
+    assert dash_invalid.status_code == 401
+
+    # Dashboard with expired token -> 401
+    past_exp = int(time.time()) - 100
+    expired_token = f"{past_exp}.nonce.sig"
+    dash_expired = client.get("/api/v1/admin/dashboard", headers={"X-Admin-Token": expired_token})
+    assert dash_expired.status_code == 401
+
+    # Dashboard with valid token -> 200
     dash_auth = client.get("/api/v1/admin/dashboard", headers={"X-Admin-Token": token})
     assert dash_auth.status_code == 200
     dash_data = dash_auth.json()
@@ -52,7 +68,11 @@ def test_admin_login_and_unauthorized_access(client):
     assert "channel_performance" in dash_data
     assert "budget_optimization" in dash_data["channel_performance"]
 
-def test_admin_export_csv(client, db_session):
+def test_admin_export_csv(client, db_session, monkeypatch):
+    test_pass = "secure_admin_pass_pytest_123"
+    monkeypatch.setenv("ADMIN_PASSWORD", test_pass)
+    monkeypatch.setenv("ADMIN_SESSION_SECRET", "test_session_secret_key_32bytes_long")
+
     # Perform 1 registration first
     reg = RegistrationModel(
         full_name="Export User",
@@ -68,7 +88,11 @@ def test_admin_export_csv(client, db_session):
     db_session.add(reg)
     db_session.commit()
 
-    login_res = client.post("/api/v1/admin/login", json={"password": "nxtwave_admin_2026"})
+    # Unauthenticated CSV export -> 401
+    unauth_csv = client.get("/api/v1/admin/export-csv")
+    assert unauth_csv.status_code == 401
+
+    login_res = client.post("/api/v1/admin/login", json={"password": test_pass})
     token = login_res.json()["token"]
 
     csv_res = client.get("/api/v1/admin/export-csv", headers={"X-Admin-Token": token})

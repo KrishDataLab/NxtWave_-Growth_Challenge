@@ -1,43 +1,126 @@
 import os
 import csv
 import io
-from fastapi import APIRouter, Depends, HTTPException, Header, Response, status
+import time
+import hmac
+import hashlib
+import secrets
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.db.database import get_db
-from app.db.models import RegistrationModel, AnalyticsEventModel, RegistrationVerificationModel
+from app.db.models import RegistrationModel
 from app.services.metrics_service import get_growth_metrics_summary
+from app.core.rate_limiter import admin_rate_limiter
 
 router = APIRouter(prefix="/admin", tags=["Admin Growth Dashboard"])
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "nxtwave_admin_2026")
+def get_admin_session_secret() -> str:
+    secret = os.environ.get("ADMIN_SESSION_SECRET", "").strip()
+    if not secret:
+        # Fallback to process-random 32-byte hex secret if not configured in environment
+        secret = getattr(get_admin_session_secret, "_fallback_secret", None)
+        if not secret:
+            secret = secrets.token_hex(32)
+            setattr(get_admin_session_secret, "_fallback_secret", secret)
+    return secret
 
 class AdminLoginRequest(BaseModel):
     password: str
 
-@router.post("/login")
-def admin_login(body: AdminLoginRequest):
-    if body.password != ADMIN_PASSWORD:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid admin password"
-        )
-    return {"success": True, "token": "admin_session_nxtwave_growth_2026", "message": "Admin authenticated"}
+def generate_signed_session_token() -> str:
+    # Token valid for 1 hour (3600 seconds)
+    exp = int(time.time()) + 3600
+    nonce = secrets.token_hex(16)
+    payload = f"{exp}:{nonce}"
+    secret = get_admin_session_secret()
+    sig = hmac.new(
+        secret.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    return f"{exp}.{nonce}.{sig}"
 
-def verify_admin_token(x_admin_token: str | None = Header(default=None, alias="X-Admin-Token")):
-    if not x_admin_token or "admin_session" not in x_admin_token:
+def verify_admin_token(
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    authorization: str | None = Header(default=None, alias="Authorization")
+):
+    token = x_admin_token
+    if not token and authorization:
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin authentication required"
         )
 
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session token format"
+        )
+
+    exp_str, nonce, sig = parts
+    try:
+        exp = int(exp_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session token timestamp"
+        )
+
+    if time.time() > exp:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session token expired. Please log in again."
+        )
+
+    payload = f"{exp}:{nonce}"
+    secret = get_admin_session_secret()
+    expected_sig = hmac.new(
+        secret.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(sig, expected_sig):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session token signature"
+        )
+
+@router.post("/login")
+def admin_login(request: Request, body: AdminLoginRequest):
+    admin_rate_limiter.check_rate_limit(request)
+
+    admin_pass = os.environ.get("ADMIN_PASSWORD", "").strip()
+    if not admin_pass:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin password is not configured on the server."
+        )
+
+    if not hmac.compare_digest(body.password, admin_pass):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin password"
+        )
+
+    session_token = generate_signed_session_token()
+    return {
+        "success": True,
+        "token": session_token,
+        "message": "Admin authenticated successfully"
+    }
+
 @router.get("/dashboard")
 def get_admin_dashboard(db: Session = Depends(get_db), _: None = Depends(verify_admin_token)):
     metrics = get_growth_metrics_summary(db)
     
-    # 1. Acquisition Channel Performance & ₹2,000 Budget Optimization Analysis
     total_regs = metrics.total_registrations or 1
     source_counts = metrics.registrations_by_source or {}
 
@@ -46,7 +129,6 @@ def get_admin_dashboard(db: Session = Depends(get_db), _: None = Depends(verify_
     paid_cnt = source_counts.get("instagram", 0) + source_counts.get("linkedin", 0) + source_counts.get("paid", 0)
     direct_cnt = source_counts.get("direct", 0) + source_counts.get("other", 0)
 
-    # Budget optimization simulation for ₹2,000 allocation
     budget_total = 2000
     if paid_cnt > comm_cnt and paid_cnt > wa_cnt:
         allocated = {"paid_amplification": 1200, "whatsapp": 500, "student_communities": 300}
@@ -70,7 +152,6 @@ def get_admin_dashboard(db: Session = Depends(get_db), _: None = Depends(verify_
         }
     }
 
-    # 2. Verification Friction Analysis: OTP vs Magic Link
     otp_count = db.query(RegistrationModel).filter(
         (RegistrationModel.verification_method == "otp") | (RegistrationModel.verification_method.is_(None))
     ).count()
@@ -83,7 +164,7 @@ def get_admin_dashboard(db: Session = Depends(get_db), _: None = Depends(verify_
         "otp_verified_registrations": otp_count,
         "magic_link_verified_registrations": magic_count,
         "magic_link_adoption_pct": round((magic_count / total_regs) * 100, 1) if total_regs > 0 else 0,
-        "estimated_time_saved_seconds": magic_count * 25  # ~25s saved per magic link click vs entering 6 digits
+        "estimated_time_saved_seconds": magic_count * 25
     }
 
     return {
@@ -99,7 +180,6 @@ def export_registrations_csv(db: Session = Depends(get_db), _: None = Depends(ve
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Write CSV Header
     writer.writerow([
         "ID", "Full Name", "Email", "Phone", "College Name", "Branch", 
         "Graduation Year", "Source", "Medium", "Campaign", "Referral Code", 

@@ -72,3 +72,5 @@ class SimpleRateLimiter:
         self.requests[client_ip].append(now)
 
 registration_rate_limiter = SimpleRateLimiter(requests_per_minute=10)
+admin_rate_limiter = SimpleRateLimiter(requests_per_minute=5)
+
