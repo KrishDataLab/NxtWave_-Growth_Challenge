@@ -58,8 +58,8 @@ def init_db_schema():
         return
     try:
         Base.metadata.create_all(bind=engine)
-        if "postgresql" in str(engine.url):
-            with engine.begin() as conn:
+        with engine.begin() as conn:
+            if "postgresql" in str(engine.url):
                 for col_def in [
                     "ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
                     "ADD COLUMN IF NOT EXISTS whatsapp_opt_in BOOLEAN DEFAULT FALSE",
@@ -70,6 +70,17 @@ def init_db_schema():
                         conn.execute(text(f"ALTER TABLE registrations {col_def}"))
                     except Exception:
                         pass
+
+            # Safe DDL migration: Guarantee unique indexes exist on email & referral_code
+            for idx_sql in [
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_registrations_email ON registrations (email)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_registrations_referral_code ON registrations (referral_code)"
+            ]:
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception as idx_err:
+                    logger.warning(f"Index creation notice: {idx_err}")
+
         _tables_created = True
     except Exception as err:
         logger.warning(f"Primary DB connection/schema creation failed ({err}), switching to fallback SQLite /tmp...")
@@ -77,7 +88,16 @@ def init_db_schema():
             fallback_url = "sqlite:////tmp/nxtwave_growth.db"
             engine = create_configured_engine(fallback_url)
             SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            Base.metadata.create_all(bind=fb_engine if 'fb_engine' in locals() else engine)
+            Base.metadata.create_all(bind=engine)
+            with engine.begin() as conn:
+                for idx_sql in [
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_registrations_email ON registrations (email)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_registrations_referral_code ON registrations (referral_code)"
+                ]:
+                    try:
+                        conn.execute(text(idx_sql))
+                    except Exception:
+                        pass
             _tables_created = True
         except Exception as fb_err:
             logger.error(f"Fallback DB initialization failed: {fb_err}")
