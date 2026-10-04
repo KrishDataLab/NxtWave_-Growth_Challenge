@@ -1,31 +1,10 @@
 {
-  "builds": [
+  "buildCommand": "cd Frontend && npm install --ignore-scripts=false && npm run build",
+  "outputDirectory": "Frontend/dist",
+  "rewrites": [
     {
-      "src": "Frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    },
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": "Backend/**"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api/index.py"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/Frontend/$1"
+      "source": "/api/(.*)",
+      "destination": "/api"
     }
   ]
 }
