@@ -6,32 +6,17 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
-from app.db.database import engine, Base
+from app.db.database import engine, Base, init_db_schema
 from app.api import api_router
 
-# Configure Logger without exposing full phone numbers or PII
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nxtwave_growth_backend")
 
-from sqlalchemy import text
-
-# Create database tables automatically on startup
+# Safely initialize database schema
 try:
-    Base.metadata.create_all(bind=engine)
-    # Safe column additions for pre-existing tables
-    with engine.begin() as conn:
-        for col_def in [
-            "ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
-            "ADD COLUMN IF NOT EXISTS whatsapp_opt_in BOOLEAN DEFAULT FALSE",
-            "ADD COLUMN IF NOT EXISTS verification_id VARCHAR(64)",
-            "ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE"
-        ]:
-            try:
-                conn.execute(text(f"ALTER TABLE registrations {col_def}"))
-            except Exception as col_err:
-                logger.debug(f"Column addition notice: {col_err}")
+    init_db_schema()
 except Exception as e:
-    logger.warning(f"Database table creation deferred: {e}")
+    logger.warning(f"Database schema initialization notice: {e}")
 
 app = FastAPI(
     title="NxtWave Growth Challenge API",
