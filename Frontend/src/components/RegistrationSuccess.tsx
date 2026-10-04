@@ -9,6 +9,7 @@ type RegistrationSuccessProps = {
   emailVerified: boolean;
   whatsappOptIn: boolean;
   whatsappStatus?: string | undefined;
+  alreadyRegistered?: boolean;
 };
 
 export function RegistrationSuccess({
@@ -16,6 +17,7 @@ export function RegistrationSuccess({
   emailVerified,
   whatsappOptIn,
   whatsappStatus,
+  alreadyRegistered,
 }: RegistrationSuccessProps) {
   const [copied, setCopied] = useState(false);
 
@@ -45,6 +47,11 @@ export function RegistrationSuccess({
             <Check className="size-3.5 text-emerald-400" /> Email Verified ✓
           </span>
         )}
+        {alreadyRegistered && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300">
+            Existing Registration
+          </span>
+        )}
         {whatsappOptIn && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-300">
             <MessageSquareText className="size-3.5 text-sky-400" /> WhatsApp Confirmation: Simulated
@@ -54,12 +61,12 @@ export function RegistrationSuccess({
 
       {/* Headline */}
       <h3 className="mt-4 font-display text-3xl font-bold text-primary-foreground sm:text-4xl">
-        Congratulations! Your seat is booked.
+        {alreadyRegistered ? "You're already registered!" : "Congratulations! Your seat is booked."}
       </h3>
 
       <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
         <Sparkles className="size-3.5" />
-        <span>Build Your First AI Project in 60 Minutes</span>
+        <span>{alreadyRegistered ? "Your seat is already booked." : "Build Your First AI Project in 60 Minutes"}</span>
       </div>
 
       <p className="mt-4 max-w-md mx-auto text-sm leading-6 text-hero-muted">

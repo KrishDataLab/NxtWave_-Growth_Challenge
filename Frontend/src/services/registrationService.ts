@@ -14,6 +14,8 @@ export type RegistrationPayload = {
 
 export type StartVerificationResult = {
   success: boolean;
+  alreadyRegistered?: boolean;
+  referralCode?: string;
   verificationId?: string;
   expiresInSeconds?: number;
   message?: string;
@@ -22,6 +24,7 @@ export type StartVerificationResult = {
 
 export type VerifyOTPResult = {
   success: boolean;
+  alreadyRegistered?: boolean;
   registrationId?: string;
   referralCode: string;
   emailVerified?: boolean;
@@ -82,6 +85,8 @@ export async function startRegistrationVerification(
 
     return {
       success: true,
+      alreadyRegistered: Boolean(resData.already_registered),
+      referralCode: resData.referral_code,
       verificationId: resData.verification_id,
       expiresInSeconds: resData.expires_in_seconds,
       message: resData.message || "Verification code sent to email",
@@ -137,6 +142,7 @@ export async function verifyRegistrationOTP(
 
     return {
       success: true,
+      alreadyRegistered: Boolean(resData.already_registered),
       registrationId: resData.registration_id,
       referralCode: resData.referral_code,
       emailVerified: resData.email_verified,

@@ -51,6 +51,7 @@ export function RegistrationForm({ ctaSource }: { ctaSource: CtaSource }) {
   const [referralCode, setReferralCode] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
   const [whatsappStatus, setWhatsappStatus] = useState<string | undefined>();
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   function updateField<Key extends keyof FormFields>(key: Key, value: FormFields[Key]) {
     setFields((current) => ({ ...current, [key]: value }));
@@ -94,7 +95,21 @@ export function RegistrationForm({ ctaSource }: { ctaSource: CtaSource }) {
 
     setLoading(false);
 
-    if (!result.success || !result.verificationId) {
+    if (!result.success) {
+      setErrors({ apiError: result.error || "Failed to send verification code. Please try again." });
+      return;
+    }
+
+    if (result.alreadyRegistered && result.referralCode) {
+      setReferralCode(result.referralCode);
+      setEmailVerified(true);
+      setAlreadyRegistered(true);
+      trackEvent("duplicate_registration_attempt", { email: parsed.data.email, cta_source: ctaSource });
+      setStage("success");
+      return;
+    }
+
+    if (!result.verificationId) {
       setErrors({ apiError: result.error || "Failed to send verification code. Please try again." });
       return;
     }
@@ -116,22 +131,27 @@ export function RegistrationForm({ ctaSource }: { ctaSource: CtaSource }) {
     setEmailVerified(Boolean(result.emailVerified));
     setWhatsappStatus(result.whatsappStatus);
 
-    saveDemoSubmission(window.localStorage, {
-      ...fields,
-      attribution,
-      ctaSource,
-      referralCode: result.referralCode,
-      emailVerified: true,
-      whatsappOptIn,
-      submittedAt: new Date().toISOString(),
-    });
+    if (result.alreadyRegistered) {
+      setAlreadyRegistered(true);
+      trackEvent("duplicate_registration_attempt", { verification_id: verificationId });
+    } else {
+      saveDemoSubmission(window.localStorage, {
+        ...fields,
+        attribution,
+        ctaSource,
+        referralCode: result.referralCode,
+        emailVerified: true,
+        whatsappOptIn,
+        submittedAt: new Date().toISOString(),
+      });
 
-    trackEvent("otp_verified", { verification_id: verificationId });
-    trackEvent("registration_completed", {
-      cta_source: ctaSource,
-      referral: attribution.referral,
-      whatsapp_opt_in: whatsappOptIn,
-    });
+      trackEvent("otp_verified", { verification_id: verificationId });
+      trackEvent("registration_completed", {
+        cta_source: ctaSource,
+        referral: attribution.referral,
+        whatsapp_opt_in: whatsappOptIn,
+      });
+    }
 
     setStage("success");
     return { success: true };
@@ -185,6 +205,7 @@ export function RegistrationForm({ ctaSource }: { ctaSource: CtaSource }) {
         emailVerified={emailVerified}
         whatsappOptIn={whatsappOptIn}
         whatsappStatus={whatsappStatus}
+        alreadyRegistered={alreadyRegistered}
       />
     );
   }

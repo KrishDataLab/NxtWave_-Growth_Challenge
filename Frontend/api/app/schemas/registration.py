@@ -33,8 +33,10 @@ class RegistrationStartCreate(RegistrationCreate):
 
 class RegistrationStartResponse(BaseModel):
     success: bool = True
-    verification_id: str
+    already_registered: bool = False
+    verification_id: str = ""
     expires_in_seconds: int = 600
+    referral_code: Optional[str] = None
     message: str = "Verification code sent to email"
 
 class OTPVerifyRequest(BaseModel):
@@ -50,10 +52,10 @@ class OTPVerifyRequest(BaseModel):
 
 class RegistrationResponse(BaseModel):
     success: bool = True
+    already_registered: bool = False
     registration_id: str
     referral_code: str  # The newly generated referral code for this registrant
     email_verified: bool = True
     whatsapp_opt_in: bool = False
     whatsapp_status: Optional[str] = None
     message: str = "Registration successful"
-
