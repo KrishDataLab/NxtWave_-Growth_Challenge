@@ -98,7 +98,7 @@ export function CampaignPage() {
       </main>
       <Footer onOpenAdmin={() => setAdminOpen(true)} />
       {adminOpen && <AdminDashboard onClose={() => setAdminOpen(false)} />}
-      <div className="mobile-cta"><Button className="w-full" size="lg" onClick={() => goToRegistration("mobile")}>Register Free <ArrowRight /></Button></div>
+      <div className="mobile-cta"><Button className="w-full" size="lg" onClick={() => goToRegistration("mobile")}>Reserve My Free Seat <ArrowRight /></Button></div>
     </div>
   );
 }
