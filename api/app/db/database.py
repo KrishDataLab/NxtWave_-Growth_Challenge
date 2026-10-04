@@ -87,19 +87,26 @@ def init_db_schema():
 
 def get_db():
     init_db_schema()
+    db = None
     try:
         db = SessionLocal()
-        yield db
     except Exception as db_err:
         logger.error(f"DB session error ({db_err}), attempting fallback SQLite...")
-        fallback_url = "sqlite:////tmp/nxtwave_growth.db"
-        fb_engine = create_configured_engine(fallback_url)
-        Base.metadata.create_all(bind=fb_engine)
-        FB_Session = sessionmaker(autocommit=False, autoflush=False, bind=fb_engine)
-        db = FB_Session()
+        try:
+            fallback_url = "sqlite:////tmp/nxtwave_growth.db"
+            fb_engine = create_configured_engine(fallback_url)
+            Base.metadata.create_all(bind=fb_engine)
+            FB_Session = sessionmaker(autocommit=False, autoflush=False, bind=fb_engine)
+            db = FB_Session()
+        except Exception as fb_err:
+            logger.error(f"Fallback DB error: {fb_err}")
+            raise
+    try:
         yield db
     finally:
-        try:
-            db.close()
-        except Exception:
-            pass
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
+
