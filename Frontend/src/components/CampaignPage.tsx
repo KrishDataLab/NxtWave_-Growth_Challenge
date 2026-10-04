@@ -75,7 +75,7 @@ export function CampaignPage() {
         <ProblemSection />
         <TimelineSection />
         <ProjectPreview onRegister={() => goToRegistration("project_preview")} />
-        <VideoDemoSection onRegister={() => goToRegistration("project_preview")} />
+        <VideoDemoSection onRegister={() => goToRegistration("video")} />
         <Benefits />
         <Credibility />
         <Audience />
