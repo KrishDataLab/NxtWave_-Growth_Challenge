@@ -16,6 +16,18 @@ logger = logging.getLogger("nxtwave_growth_backend")
 # Create database tables automatically on startup
 try:
     Base.metadata.create_all(bind=engine)
+    # Safe column additions for pre-existing tables
+    with engine.begin() as conn:
+        for col_def in [
+            "ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT TRUE",
+            "ADD COLUMN IF NOT EXISTS whatsapp_opt_in BOOLEAN DEFAULT FALSE",
+            "ADD COLUMN IF NOT EXISTS verification_id VARCHAR(64)",
+            "ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE"
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE registrations {col_def}")
+            except Exception:
+                pass
 except Exception as e:
     logger.warning(f"Database table creation deferred: {e}")
 

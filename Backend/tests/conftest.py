@@ -28,9 +28,12 @@ def db_session():
         session.close()
         Base.metadata.drop_all(bind=engine)
 
+from app.core.rate_limiter import registration_rate_limiter
+
 @pytest.fixture(scope="function")
 def client(db_session):
     """Provides a TestClient with dependency override for get_db."""
+    registration_rate_limiter.requests.clear()
     def override_get_db():
         try:
             yield db_session
@@ -41,3 +44,4 @@ def client(db_session):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+    registration_rate_limiter.requests.clear()

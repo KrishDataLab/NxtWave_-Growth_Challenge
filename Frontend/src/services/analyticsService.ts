@@ -5,7 +5,12 @@ export type TrackingEventName =
   | "page_view"
   | "cta_click"
   | "registration_started"
+  | "otp_sent"
+  | "otp_verified"
   | "registration_completed"
+  | "whatsapp_confirmation_requested"
+  | "whatsapp_confirmation_sent"
+  | "whatsapp_confirmation_failed"
   | "registration_abandoned"
   | "share_whatsapp"
   | "referral_copied";
@@ -27,7 +32,12 @@ export async function sendAnalyticsEvent(
   if (event === "page_view") backendEvent = "page_view";
   else if (event === "cta_click") backendEvent = "hero_cta_click";
   else if (event === "registration_started") backendEvent = "registration_started";
+  else if (event === "otp_sent") backendEvent = "otp_sent";
+  else if (event === "otp_verified") backendEvent = "otp_verified";
   else if (event === "registration_completed") backendEvent = "registration_completed";
+  else if (event === "whatsapp_confirmation_requested") backendEvent = "whatsapp_confirmation_requested";
+  else if (event === "whatsapp_confirmation_sent") backendEvent = "whatsapp_confirmation_sent";
+  else if (event === "whatsapp_confirmation_failed") backendEvent = "whatsapp_confirmation_failed";
   else if (event === "share_whatsapp") backendEvent = "whatsapp_share";
   else if (event === "referral_copied") backendEvent = "referral_copied";
   else if (event === "registration_abandoned") return; // Client-side only event

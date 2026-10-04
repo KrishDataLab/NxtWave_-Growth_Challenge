@@ -6,7 +6,12 @@ SUPPORTED_EVENTS = {
     "hero_cta_click",
     "project_preview_click",
     "registration_started",
+    "otp_sent",
+    "otp_verified",
     "registration_completed",
+    "whatsapp_confirmation_requested",
+    "whatsapp_confirmation_sent",
+    "whatsapp_confirmation_failed",
     "whatsapp_share",
     "referral_copied",
     "faq_opened"
