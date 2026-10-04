@@ -17,7 +17,13 @@ from app.core.rate_limiter import admin_rate_limiter
 router = APIRouter(prefix="/admin", tags=["Admin Growth Dashboard"])
 
 def get_admin_session_secret() -> str:
-    return os.environ.get("ADMIN_SESSION_SECRET", "").strip()
+    secret = os.environ.get("ADMIN_SESSION_SECRET", "").strip()
+    if not secret:
+        admin_pass = os.environ.get("ADMIN_PASSWORD", "").strip()
+        if admin_pass:
+            # Derive session secret dynamically from ADMIN_PASSWORD if ADMIN_SESSION_SECRET is omitted
+            secret = hashlib.sha256(f"nxtwave_session_secret:{admin_pass}".encode("utf-8")).hexdigest()
+    return secret
 
 class AdminLoginRequest(BaseModel):
     password: str
@@ -101,11 +107,17 @@ def admin_login(request: Request, body: AdminLoginRequest):
     admin_rate_limiter.check_rate_limit(request)
 
     admin_pass = os.environ.get("ADMIN_PASSWORD", "").strip()
-    session_secret = get_admin_session_secret()
-    if not admin_pass or not session_secret:
+    if not admin_pass:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Admin password or session secret is not configured on the server."
+            detail="ADMIN_PASSWORD environment variable is not configured on the server."
+        )
+
+    session_secret = get_admin_session_secret()
+    if not session_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="ADMIN_SESSION_SECRET environment variable is not configured on the server."
         )
 
     if not hmac.compare_digest(body.password, admin_pass):
