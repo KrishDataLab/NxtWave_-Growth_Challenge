@@ -1,5 +1,8 @@
-def app(environ, start_response):
-    status = '200 OK'
-    response_headers = [('Content-type', 'application/json')]
-    start_response(status, response_headers)
-    return [b'{"status": "healthy"}']
+import sys
+import os
+
+api_dir = os.path.dirname(__file__)
+if api_dir not in sys.path:
+    sys.path.insert(0, api_dir)
+
+from app.main import app
