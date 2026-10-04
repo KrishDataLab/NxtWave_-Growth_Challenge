@@ -36,4 +36,7 @@ class Settings(BaseSettings):
             return [origin.strip().rstrip("/") for origin in v.split(",") if origin.strip()]
         return v
 
-settings = Settings()
+try:
+    settings = Settings()
+except Exception:
+    settings = Settings(_env_file=None)
