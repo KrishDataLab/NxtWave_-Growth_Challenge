@@ -23,24 +23,6 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-# CORS Configuration
-origins = settings.CORS_ORIGINS
-if isinstance(origins, str):
-    origins = [origins]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include API v1 Router for /api/v1, /v1, and root
-app.include_router(api_router, prefix=settings.API_V1_STR)
-app.include_router(api_router, prefix="/v1")
-app.include_router(api_router)
-
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -58,6 +40,24 @@ async def add_security_headers(request: Request, call_next):
         "connect-src 'self' https:;"
     )
     return response
+
+# CORS Configuration
+origins = settings.CORS_ORIGINS
+if isinstance(origins, str):
+    origins = [origins]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+# Include API v1 Router for /api/v1, /v1, and root
+app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router, prefix="/v1")
+app.include_router(api_router)
 
 @app.get("/", include_in_schema=False)
 def root():
