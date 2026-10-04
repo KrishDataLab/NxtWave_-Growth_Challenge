@@ -29,11 +29,7 @@ def format_db_url(raw_url: str) -> str:
 
 db_url = format_db_url(db_url)
 
-
-
-connect_args = {}
 if db_url.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
     if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         if "./" in db_url:
             db_url = "sqlite:////tmp/nxtwave_growth.db"
@@ -62,17 +58,18 @@ def init_db_schema():
         return
     try:
         Base.metadata.create_all(bind=engine)
-        with engine.begin() as conn:
-            for col_def in [
-                "ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
-                "ADD COLUMN IF NOT EXISTS whatsapp_opt_in BOOLEAN DEFAULT FALSE",
-                "ADD COLUMN IF NOT EXISTS verification_id VARCHAR(64)",
-                "ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE"
-            ]:
-                try:
-                    conn.execute(text(f"ALTER TABLE registrations {col_def}"))
-                except Exception:
-                    pass
+        if "postgresql" in str(engine.url):
+            with engine.begin() as conn:
+                for col_def in [
+                    "ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
+                    "ADD COLUMN IF NOT EXISTS whatsapp_opt_in BOOLEAN DEFAULT FALSE",
+                    "ADD COLUMN IF NOT EXISTS verification_id VARCHAR(64)",
+                    "ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE"
+                ]:
+                    try:
+                        conn.execute(text(f"ALTER TABLE registrations {col_def}"))
+                    except Exception:
+                        pass
         _tables_created = True
     except Exception as err:
         logger.warning(f"Primary DB connection/schema creation failed ({err}), switching to fallback SQLite /tmp...")
@@ -80,33 +77,15 @@ def init_db_schema():
             fallback_url = "sqlite:////tmp/nxtwave_growth.db"
             engine = create_configured_engine(fallback_url)
             SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            Base.metadata.create_all(bind=engine)
+            Base.metadata.create_all(bind=fb_engine if 'fb_engine' in locals() else engine)
             _tables_created = True
         except Exception as fb_err:
             logger.error(f"Fallback DB initialization failed: {fb_err}")
 
 def get_db():
     init_db_schema()
-    db = None
-    try:
-        db = SessionLocal()
-    except Exception as db_err:
-        logger.error(f"DB session error ({db_err}), attempting fallback SQLite...")
-        try:
-            fallback_url = "sqlite:////tmp/nxtwave_growth.db"
-            fb_engine = create_configured_engine(fallback_url)
-            Base.metadata.create_all(bind=fb_engine)
-            FB_Session = sessionmaker(autocommit=False, autoflush=False, bind=fb_engine)
-            db = FB_Session()
-        except Exception as fb_err:
-            logger.error(f"Fallback DB error: {fb_err}")
-            raise
+    db = SessionLocal()
     try:
         yield db
     finally:
-        if db is not None:
-            try:
-                db.close()
-            except Exception:
-                pass
-
+        db.close()
