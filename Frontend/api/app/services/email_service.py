@@ -9,6 +9,17 @@ from app.core.config import settings
 
 logger = logging.getLogger("nxtwave_growth_backend")
 
+def mask_email(email: str) -> str:
+    if not email or "@" not in email:
+        return "***"
+    parts = email.split("@", 1)
+    name, domain = parts[0], parts[1]
+    if len(name) <= 2:
+        masked_name = name[0] + "*"
+    else:
+        masked_name = name[0] + "***" + name[-1]
+    return f"{masked_name}@{domain}"
+
 @dataclass
 class EmailSendResult:
     success: bool
@@ -33,7 +44,7 @@ class ConsoleEmailProvider(BaseEmailProvider):
         )
 
         logger.info(
-            f"[Console Email Provider] Outgoing Email to <{to_email}>:\n"
+            f"[Console Email Provider] Outgoing Email to <{mask_email(to_email)}>:\n"
             f"Subject: {subject}\n"
             f"Body:\n{body}"
         )
@@ -48,9 +59,31 @@ class ConsoleEmailProvider(BaseEmailProvider):
 class SMTPEmailProvider(BaseEmailProvider):
     """Production provider using standard SMTP/TLS to deliver real emails."""
     def send_otp_email(self, to_email: str, otp: str) -> EmailSendResult:
-        if not settings.SMTP_HOST:
-            logger.warning("[SMTPEmailProvider] SMTP_HOST not configured, falling back to Console log")
-            return ConsoleEmailProvider().send_otp_email(to_email, otp)
+        host = settings.SMTP_HOST or "smtp.gmail.com"
+        port = settings.SMTP_PORT or 587
+        user = settings.SMTP_USER or "kunchalamohank@gmail.com"
+        from_email = settings.SMTP_FROM_EMAIL or user
+        password = settings.SMTP_PASSWORD or ""
+        has_password = bool(password and len(password.strip()) > 0)
+
+        logger.info(
+            f"[SMTP Diagnostic] Attempting OTP send:\n"
+            f"  Host: {host}:{port}\n"
+            f"  User: {mask_email(user)}\n"
+            f"  From: {mask_email(from_email)}\n"
+            f"  To: {mask_email(to_email)}\n"
+            f"  Has Password: {has_password}\n"
+            f"  TLS: {settings.SMTP_TLS}"
+        )
+
+        if not has_password:
+            logger.warning("[SMTP Diagnostic] SMTP_PASSWORD is not set in environment variables! Gmail SMTP requires an App Password.")
+            return EmailSendResult(
+                success=False,
+                provider="smtp",
+                delivered=False,
+                detail="SMTP_PASSWORD missing in Vercel Environment Variables. Gmail SMTP requires an App Password."
+            )
 
         subject = "Verify your NxtWave workshop registration"
         body = (
@@ -60,37 +93,49 @@ class SMTPEmailProvider(BaseEmailProvider):
         )
 
         msg = MIMEMultipart()
-        msg["From"] = settings.SMTP_FROM_EMAIL
+        msg["From"] = from_email
         msg["To"] = to_email
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
 
         try:
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+            with smtplib.SMTP(host, port, timeout=12) as server:
+                server.ehlo()
                 if settings.SMTP_TLS:
                     server.starttls()
-                if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                    server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.sendmail(settings.SMTP_FROM_EMAIL, [to_email], msg.as_string())
+                    server.ehlo()
+                if user and password:
+                    server.login(user, password)
+                server.sendmail(from_email, [to_email], msg.as_string())
 
-            logger.info(f"[SMTPEmailProvider] Real OTP email successfully delivered to <{to_email}> via SMTP ({settings.SMTP_HOST})")
+            logger.info(f"[SMTP Diagnostic] SUCCESS: Real OTP email delivered to <{mask_email(to_email)}> via {host}:{port}")
             return EmailSendResult(
                 success=True,
                 provider="smtp",
                 delivered=True,
-                detail=f"Real OTP email sent to {to_email} via SMTP"
+                detail=f"Email accepted by {host}:{port} for recipient"
             )
-        except Exception as err:
-            logger.error(f"[SMTPEmailProvider] Failed to send email to <{to_email}>: {err}")
+        except smtplib.SMTPAuthenticationError as auth_err:
+            clean_err = str(auth_err).replace(password, "***") if password else str(auth_err)
+            logger.error(f"[SMTP Diagnostic] AUTH ERROR: {clean_err}")
             return EmailSendResult(
                 success=False,
                 provider="smtp",
                 delivered=False,
-                detail=f"SMTP Delivery Error: {str(err)}"
+                detail=f"SMTP Auth Error (535): {clean_err}"
+            )
+        except Exception as err:
+            clean_err = str(err).replace(password, "***") if password else str(err)
+            logger.error(f"[SMTP Diagnostic] ERROR: {clean_err}")
+            return EmailSendResult(
+                success=False,
+                provider="smtp",
+                delivered=False,
+                detail=f"SMTP Error: {clean_err}"
             )
 
 def get_email_provider() -> BaseEmailProvider:
-    provider_type = getattr(settings, "EMAIL_PROVIDER", "console").lower()
+    provider_type = getattr(settings, "EMAIL_PROVIDER", "smtp").lower()
     if provider_type == "smtp" or bool(settings.SMTP_HOST):
         return SMTPEmailProvider()
     return ConsoleEmailProvider()
