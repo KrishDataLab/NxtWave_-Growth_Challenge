@@ -38,20 +38,21 @@ export function RegistrationSuccess({
         <CheckCircle2 aria-hidden="true" />
       </div>
 
+      {/* Badges */}
       <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
         {emailVerified && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
-            <Check className="size-3 text-emerald-400" /> Email Verified
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
+            <Check className="size-3.5 text-emerald-400" /> Email Verified ✓
           </span>
         )}
         {whatsappOptIn && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-            <MessageSquareText className="size-3 text-emerald-400" /> WhatsApp Updates Enabled (Mock)
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-300">
+            <MessageSquareText className="size-3.5 text-sky-400" /> WhatsApp Confirmation: Simulated
           </span>
         )}
       </div>
 
-      {/* Required Header */}
+      {/* Headline */}
       <h3 className="mt-4 font-display text-3xl font-bold text-primary-foreground sm:text-4xl">
         Congratulations! Your seat is booked.
       </h3>
@@ -65,18 +66,18 @@ export function RegistrationSuccess({
         {workshopConfig.operationalDetails.access}
       </p>
 
-      {whatsappOptIn && whatsappStatus === "mocked" && (
-        <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-950/30 p-3 text-xs text-emerald-200">
-          <p className="font-semibold text-emerald-300">WhatsApp Confirmation Simulated</p>
-          <p className="mt-0.5 opacity-80">
-            We logged a mock WhatsApp message containing your referral code for challenge demonstration.
+      {whatsappOptIn && (whatsappStatus === "mocked" || whatsappStatus === "skipped") && (
+        <div className="mt-4 rounded-xl border border-sky-500/20 bg-slate-900/80 p-3.5 text-xs text-sky-200">
+          <p className="font-semibold text-sky-300">Your WhatsApp confirmation has been prepared.</p>
+          <p className="mt-1 text-[11px] opacity-80 leading-relaxed">
+            In this challenge simulation, the confirmation message payload was generated and logged safely.
           </p>
         </div>
       )}
 
-      {/* Referral Code Box */}
+      {/* Referral Code */}
       <div className="referral-code mt-6" aria-label={`Your referral code is ${referralCode}`}>
-        <span>Your invite code</span>
+        <span>Your referral code</span>
         <strong className="tracking-wider text-accent">{referralCode}</strong>
       </div>
 
@@ -84,7 +85,7 @@ export function RegistrationSuccess({
         Invite your friends to register
       </p>
 
-      {/* Share CTAs */}
+      {/* Primary CTA: Share on WhatsApp */}
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Button size="xl" asChild>
           <a

@@ -21,7 +21,7 @@ class RegistrationModel(Base):
     content = Column(String(100), nullable=True)
     referral_code = Column(String(50), nullable=False, unique=True, index=True)
     referred_by = Column(String(50), nullable=True, index=True)
-    email_verified = Column(Boolean, default=True)
+    email_verified = Column(Boolean, default=False)
     whatsapp_opt_in = Column(Boolean, default=False)
     verification_id = Column(String(64), nullable=True)
     verified_at = Column(DateTime(timezone=True), nullable=True)
