@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "./apiConfig";
 
 export type AdminDashboardData = {
+  mode?: string;
   summary: {
     total_registrations: number;
     registrations_today: number;
@@ -47,9 +48,9 @@ export async function adminLogin(password: string): Promise<{ success: boolean; 
   }
 }
 
-export async function fetchAdminDashboard(token: string): Promise<AdminDashboardData | null> {
+export async function fetchAdminDashboard(token: string, mode: string = "real"): Promise<AdminDashboardData | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/dashboard`, {
+    const res = await fetch(`${API_BASE_URL}/admin/dashboard?mode=${mode}`, {
       headers: { "X-Admin-Token": token },
     });
     if (!res.ok) return null;
@@ -59,9 +60,9 @@ export async function fetchAdminDashboard(token: string): Promise<AdminDashboard
   }
 }
 
-export async function downloadRegistrationCSV(token: string): Promise<void> {
+export async function downloadRegistrationCSV(token: string, mode: string = "real"): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE_URL}/admin/export-csv`, {
+    const res = await fetch(`${API_BASE_URL}/admin/export-csv?mode=${mode}`, {
       headers: { "X-Admin-Token": token },
     });
     if (!res.ok) throw new Error("Failed to export CSV");
@@ -69,12 +70,26 @@ export async function downloadRegistrationCSV(token: string): Promise<void> {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `nxtwave_registrations_export_${Date.now()}.csv`;
+    a.download = mode === "demo" ? `nxtwave_demo_registrations_${Date.now()}.csv` : `nxtwave_registrations_export_${Date.now()}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
   } catch (err) {
     console.error("CSV download error", err);
+  }
+}
+
+export async function seedDemoData(token: string): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/seed-demo`, {
+      method: "POST",
+      headers: { "X-Admin-Token": token },
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.detail || "Failed to seed demo data" };
+    return { success: true, count: data.count };
+  } catch (err) {
+    return { success: false, error: "Network error seeding demo data" };
   }
 }
 
@@ -100,6 +115,6 @@ export async function verifyMagicToken(token: string): Promise<{
       alreadyRegistered: Boolean(data.already_registered),
     };
   } catch (err) {
-    return { success: false, error: "Unable to verify magic link connection." };
+    return { success: false, error: "Network error verifying magic token" };
   }
 }

@@ -26,6 +26,7 @@ class RegistrationModel(Base):
     verification_id = Column(String(64), nullable=True)
     verification_method = Column(String(50), default="otp")
     verified_at = Column(DateTime(timezone=True), nullable=True)
+    is_demo = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, index=True)
 
 class RegistrationVerificationModel(Base):
@@ -51,6 +52,7 @@ class RegistrationVerificationModel(Base):
     otp_attempts = Column(Integer, default=0)
     verification_status = Column(String(50), default="pending")
     verification_method = Column(String(50), default="otp")
+    is_demo = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, index=True)
     verified_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -67,5 +69,6 @@ class AnalyticsEventModel(Base):
     content = Column(String(100), nullable=True)
     referral_code = Column(String(50), nullable=True)
     metadata_json = Column(JSON, nullable=True)
+    is_demo = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, index=True)
 

@@ -5,7 +5,7 @@ import time
 import hmac
 import hashlib
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,6 @@ def get_admin_session_secret() -> str:
     if not secret:
         admin_pass = os.environ.get("ADMIN_PASSWORD", "").strip()
         if admin_pass:
-            # Derive session secret dynamically from ADMIN_PASSWORD if ADMIN_SESSION_SECRET is omitted
             secret = hashlib.sha256(f"nxtwave_session_secret:{admin_pass}".encode("utf-8")).hexdigest()
     return secret
 
@@ -29,7 +28,6 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 def generate_signed_session_token() -> str:
-    # Token valid for 1 hour (3600 seconds)
     secret = get_admin_session_secret()
     if not secret:
         raise HTTPException(
@@ -133,9 +131,19 @@ def admin_login(request: Request, body: AdminLoginRequest):
         "message": "Admin authenticated successfully"
     }
 
+@router.post("/seed-demo")
+def seed_demo(db: Session = Depends(get_db), _: None = Depends(verify_admin_token)):
+    from app.db.seed_demo_data import seed_demo_data
+    count = seed_demo_data(db)
+    return {"success": True, "count": count, "message": f"Successfully seeded {count} demo records."}
+
 @router.get("/dashboard")
-def get_admin_dashboard(db: Session = Depends(get_db), _: None = Depends(verify_admin_token)):
-    metrics = get_growth_metrics_summary(db)
+def get_admin_dashboard(
+    mode: str = Query(default="real"),
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_token)
+):
+    metrics = get_growth_metrics_summary(db, mode=mode)
     
     total_regs = metrics.total_registrations or 1
     source_counts = metrics.registrations_by_source or {}
@@ -168,11 +176,17 @@ def get_admin_dashboard(db: Session = Depends(get_db), _: None = Depends(verify_
         }
     }
 
-    otp_count = db.query(RegistrationModel).filter(
+    reg_q = db.query(RegistrationModel)
+    if mode == "demo":
+        reg_q = reg_q.filter(RegistrationModel.is_demo == True)
+    elif mode == "real":
+        reg_q = reg_q.filter(RegistrationModel.is_demo.isnot(True))
+
+    otp_count = reg_q.filter(
         (RegistrationModel.verification_method == "otp") | (RegistrationModel.verification_method.is_(None))
     ).count()
 
-    magic_count = db.query(RegistrationModel).filter(
+    magic_count = reg_q.filter(
         RegistrationModel.verification_method == "magic_link"
     ).count()
 
@@ -184,14 +198,25 @@ def get_admin_dashboard(db: Session = Depends(get_db), _: None = Depends(verify_
     }
 
     return {
+        "mode": mode,
         "summary": metrics,
         "channel_performance": channel_performance,
         "verification_friction_analysis": verification_friction_analysis
     }
 
 @router.get("/export-csv")
-def export_registrations_csv(db: Session = Depends(get_db), _: None = Depends(verify_admin_token)):
-    registrations = db.query(RegistrationModel).order_by(RegistrationModel.id.asc()).all()
+def export_registrations_csv(
+    mode: str = Query(default="real"),
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_admin_token)
+):
+    query = db.query(RegistrationModel)
+    if mode == "demo":
+        query = query.filter(RegistrationModel.is_demo == True)
+    elif mode == "real":
+        query = query.filter(RegistrationModel.is_demo.isnot(True))
+
+    registrations = query.order_by(RegistrationModel.id.asc()).all()
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -199,7 +224,7 @@ def export_registrations_csv(db: Session = Depends(get_db), _: None = Depends(ve
     writer.writerow([
         "ID", "Full Name", "Email", "Phone", "College Name", "Branch", 
         "Graduation Year", "Source", "Medium", "Campaign", "Referral Code", 
-        "Referred By", "Verification Method", "Created At"
+        "Referred By", "Verification Method", "Is Demo", "Created At"
     ])
 
     for reg in registrations:
@@ -217,13 +242,15 @@ def export_registrations_csv(db: Session = Depends(get_db), _: None = Depends(ve
             reg.referral_code,
             reg.referred_by or "",
             getattr(reg, "verification_method", "otp") or "otp",
+            getattr(reg, "is_demo", False),
             reg.created_at.isoformat() if reg.created_at else ""
         ])
 
     csv_data = output.getvalue()
+    filename = "nxtwave_demo_registrations.csv" if mode == "demo" else "nxtwave_registrations_export.csv"
 
     return Response(
         content=csv_data,
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=nxtwave_registrations_export.csv"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
