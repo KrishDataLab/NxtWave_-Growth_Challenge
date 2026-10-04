@@ -17,11 +17,7 @@ def format_db_url(raw_url: str) -> str:
     url = raw_url
     if url.startswith("postgres://") or url.startswith("postgresql://"):
         if "postgresql+" not in url:
-            try:
-                import psycopg2
-                driver = "postgresql+psycopg2://"
-            except ImportError:
-                driver = "postgresql+pg8000://"
+            driver = "postgresql+pg8000://"
             if url.startswith("postgres://"):
                 url = url.replace("postgres://", driver, 1)
             elif url.startswith("postgresql://"):
@@ -32,6 +28,7 @@ def format_db_url(raw_url: str) -> str:
     return url
 
 db_url = format_db_url(db_url)
+
 
 
 connect_args = {}
