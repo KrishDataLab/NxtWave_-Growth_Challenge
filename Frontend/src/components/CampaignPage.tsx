@@ -34,6 +34,8 @@ export function CampaignPage() {
       setMagicVerifying(true);
       verifyMagicToken(token).then((res) => {
         setMagicVerifying(false);
+        // Clean magic token parameter from browser URL for security
+        window.history.replaceState({}, document.title, window.location.pathname);
         if (res.success) {
           setMagicMessage("Magic link verified! Your seat is booked.");
           document.querySelector("#register")?.scrollIntoView({ behavior: "smooth" });

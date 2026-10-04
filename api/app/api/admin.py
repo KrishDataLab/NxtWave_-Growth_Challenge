@@ -17,24 +17,22 @@ from app.core.rate_limiter import admin_rate_limiter
 router = APIRouter(prefix="/admin", tags=["Admin Growth Dashboard"])
 
 def get_admin_session_secret() -> str:
-    secret = os.environ.get("ADMIN_SESSION_SECRET", "").strip()
-    if not secret:
-        # Fallback to process-random 32-byte hex secret if not configured in environment
-        secret = getattr(get_admin_session_secret, "_fallback_secret", None)
-        if not secret:
-            secret = secrets.token_hex(32)
-            setattr(get_admin_session_secret, "_fallback_secret", secret)
-    return secret
+    return os.environ.get("ADMIN_SESSION_SECRET", "").strip()
 
 class AdminLoginRequest(BaseModel):
     password: str
 
 def generate_signed_session_token() -> str:
     # Token valid for 1 hour (3600 seconds)
+    secret = get_admin_session_secret()
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin session secret is not configured on the server."
+        )
     exp = int(time.time()) + 3600
     nonce = secrets.token_hex(16)
     payload = f"{exp}:{nonce}"
-    secret = get_admin_session_secret()
     sig = hmac.new(
         secret.encode("utf-8"),
         payload.encode("utf-8"),
@@ -81,6 +79,11 @@ def verify_admin_token(
 
     payload = f"{exp}:{nonce}"
     secret = get_admin_session_secret()
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin session secret is not configured on the server."
+        )
     expected_sig = hmac.new(
         secret.encode("utf-8"),
         payload.encode("utf-8"),
@@ -98,10 +101,11 @@ def admin_login(request: Request, body: AdminLoginRequest):
     admin_rate_limiter.check_rate_limit(request)
 
     admin_pass = os.environ.get("ADMIN_PASSWORD", "").strip()
-    if not admin_pass:
+    session_secret = get_admin_session_secret()
+    if not admin_pass or not session_secret:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Admin password is not configured on the server."
+            detail="Admin password or session secret is not configured on the server."
         )
 
     if not hmac.compare_digest(body.password, admin_pass):
