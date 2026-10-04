@@ -29,8 +29,8 @@ class EmailSendResult:
 
 class BaseEmailProvider(ABC):
     @abstractmethod
-    def send_otp_email(self, to_email: str, otp: str) -> EmailSendResult:
-        """Sends verification code OTP to recipient email address."""
+    def send_otp_email(self, to_email: str, otp: str, magic_token: Optional[str] = None) -> EmailSendResult:
+        """Sends verification code OTP and 1-click magic link to recipient email address."""
         pass
 
     @abstractmethod
@@ -40,10 +40,12 @@ class BaseEmailProvider(ABC):
 
 class ConsoleEmailProvider(BaseEmailProvider):
     """Development / Testing / Demo provider that safely logs outgoing OTP and confirmation emails."""
-    def send_otp_email(self, to_email: str, otp: str) -> EmailSendResult:
+    def send_otp_email(self, to_email: str, otp: str, magic_token: Optional[str] = None) -> EmailSendResult:
         subject = "Verify your NxtWave workshop registration"
+        magic_url = f"https://nxt-wave-growth-challenge.vercel.app/?token={magic_token}" if magic_token else ""
         body = (
             f"Your NxtWave workshop verification code is: {otp}\n\n"
+            f"Or verify instantly with 1-Click Magic Link:\n{magic_url}\n\n"
             f"This code expires in 10 minutes.\n\n"
             f"Do not share this code with anyone."
         )
@@ -87,7 +89,7 @@ class ConsoleEmailProvider(BaseEmailProvider):
 
 class SMTPEmailProvider(BaseEmailProvider):
     """Production provider using standard SMTP/TLS to deliver real emails."""
-    def send_otp_email(self, to_email: str, otp: str) -> EmailSendResult:
+    def send_otp_email(self, to_email: str, otp: str, magic_token: Optional[str] = None) -> EmailSendResult:
         host = settings.SMTP_HOST or "smtp.gmail.com"
         port = settings.SMTP_PORT or 587
         user = settings.SMTP_USER or "kunchalamohank@gmail.com"
@@ -115,8 +117,10 @@ class SMTPEmailProvider(BaseEmailProvider):
             )
 
         subject = "Verify your NxtWave workshop registration"
+        magic_url = f"https://nxt-wave-growth-challenge.vercel.app/?token={magic_token}" if magic_token else ""
         body = (
             f"Your NxtWave workshop verification code is: {otp}\n\n"
+            f"Or verify instantly with 1-Click Magic Link:\n{magic_url}\n\n"
             f"This code expires in 10 minutes.\n\n"
             f"Do not share this code with anyone."
         )

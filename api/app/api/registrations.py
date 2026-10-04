@@ -6,10 +6,11 @@ from app.schemas.registration import (
     RegistrationStartCreate,
     RegistrationStartResponse,
     OTPVerifyRequest,
+    MagicLinkVerifyRequest,
     RegistrationResponse
 )
 from app.services.registration_service import create_registration
-from app.services.otp_service import create_pending_verification, verify_otp_and_register
+from app.services.otp_service import create_pending_verification, verify_otp_and_register, verify_magic_token_and_register
 from app.core.rate_limiter import registration_rate_limiter
 
 router = APIRouter(prefix="/registrations", tags=["Registrations"])
@@ -31,6 +32,15 @@ def verify_registration(
 ):
     registration_rate_limiter.check_rate_limit(request)
     return verify_otp_and_register(db, verify_in.verification_id, verify_in.otp)
+
+@router.post("/verify-magic", response_model=RegistrationResponse, status_code=200)
+def verify_magic_link_registration(
+    request: Request,
+    magic_in: MagicLinkVerifyRequest,
+    db: Session = Depends(get_db)
+):
+    registration_rate_limiter.check_rate_limit(request)
+    return verify_magic_token_and_register(db, magic_in.magic_token)
 
 @router.post("", response_model=RegistrationResponse, status_code=201)
 def register_user(

@@ -1,26 +1,48 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown, ArrowRight, Award, BookOpenCheck, Bot, BrainCircuit, BriefcaseBusiness,
-  CheckCircle2, ChevronRight, CircleCheck, Code2, ExternalLink, GraduationCap, Menu,
+  CheckCircle2, ChevronRight, CircleCheck, Code2, ExternalLink, GraduationCap, Lock, Menu,
   MessageCircle, Play, Sparkles, X, Zap,
 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { RegistrationForm } from "@/components/RegistrationForm";
 import { VideoDemoSection } from "@/components/VideoDemoSection";
+import { AdminDashboard } from "@/components/AdminDashboard";
 import { faqs, timeline, workshopConfig } from "@/data/workshopConfig";
 import { buildWhatsAppUrl, captureAttribution, trackEvent, type CtaSource } from "@/utils/growth";
+import { verifyMagicToken } from "@/services/adminService";
 
 const navItems = [["Why Attend", "why-attend"], ["What You'll Build", "project"], ["How It Works", "timeline"], ["FAQ", "faq"]] as const;
 
 export function CampaignPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [ctaSource, setCtaSource] = useState<CtaSource>("hero");
+  const [magicVerifying, setMagicVerifying] = useState(false);
+  const [magicMessage, setMagicMessage] = useState<string | null>(null);
   const formStarted = useRef(false);
 
   useEffect(() => {
     captureAttribution(window.location.search, window.localStorage);
     trackEvent("page_view", { path: window.location.pathname });
+
+    // Handle 1-Click Magic Link auto-verification from URL parameter (?token=...)
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      setMagicVerifying(true);
+      verifyMagicToken(token).then((res) => {
+        setMagicVerifying(false);
+        if (res.success) {
+          setMagicMessage("Magic link verified! Your seat is booked.");
+          document.querySelector("#register")?.scrollIntoView({ behavior: "smooth" });
+        } else {
+          setMagicMessage(res.error || "Magic link verification failed.");
+        }
+      });
+    }
+
     return () => {
       if (formStarted.current) trackEvent("registration_abandoned");
     };
@@ -35,8 +57,18 @@ export function CampaignPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background">
       <AnnouncementBar />
-      <Navbar menuOpen={menuOpen} setMenuOpen={setMenuOpen} onRegister={() => goToRegistration("navbar")} />
+      <Navbar menuOpen={menuOpen} setMenuOpen={setMenuOpen} onRegister={() => goToRegistration("navbar")} onOpenAdmin={() => setAdminOpen(true)} />
       <main>
+        {magicVerifying && (
+          <div className="bg-accent/15 border-b border-accent/30 py-3 text-center text-xs font-semibold text-accent animate-pulse">
+            Verifying 1-Click Magic Link... Please wait.
+          </div>
+        )}
+        {magicMessage && (
+          <div className="bg-emerald-500/15 border-b border-emerald-500/30 py-3 text-center text-xs font-semibold text-emerald-300">
+            {magicMessage}
+          </div>
+        )}
         <Hero onRegister={() => goToRegistration("hero")} />
         <ProblemSection />
         <TimelineSection />
@@ -62,7 +94,8 @@ export function CampaignPage() {
         <FaqSection />
         <FinalCta onRegister={() => goToRegistration("final_cta")} />
       </main>
-      <Footer />
+      <Footer onOpenAdmin={() => setAdminOpen(true)} />
+      {adminOpen && <AdminDashboard onClose={() => setAdminOpen(false)} />}
       <div className="mobile-cta"><Button className="w-full" size="lg" onClick={() => goToRegistration("mobile")}>Register Free <ArrowRight /></Button></div>
     </div>
   );
@@ -76,8 +109,8 @@ function AnnouncementBar() {
   return <div className="announcement"><Sparkles className="size-3.5" /> NxtWave Growth Challenge <span>•</span> Free Online Workshop</div>;
 }
 
-function Navbar({ menuOpen, setMenuOpen, onRegister }: { menuOpen: boolean; setMenuOpen: (value: boolean) => void; onRegister: () => void }) {
-  return <header className="site-header"><div className="nav-shell"><Brand /><nav className="hidden items-center gap-7 lg:flex" aria-label="Primary navigation">{navItems.map(([label, id]) => <a key={id} href={`#${id}`} className="nav-link">{label}</a>)}</nav><div className="flex shrink-0 items-center gap-2"><Button className="hidden sm:inline-flex" onClick={onRegister}>Register Free <ArrowRight /></Button><Button variant="ghost" size="icon" className="lg:hidden" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</Button></div></div>{menuOpen ? <nav className="mobile-menu" aria-label="Mobile navigation">{navItems.map(([label, id]) => <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>{label}<ChevronRight /></a>)}</nav> : null}</header>;
+function Navbar({ menuOpen, setMenuOpen, onRegister, onOpenAdmin }: { menuOpen: boolean; setMenuOpen: (value: boolean) => void; onRegister: () => void; onOpenAdmin: () => void }) {
+  return <header className="site-header"><div className="nav-shell"><Brand /><nav className="hidden items-center gap-7 lg:flex" aria-label="Primary navigation">{navItems.map(([label, id]) => <a key={id} href={`#${id}`} className="nav-link">{label}</a>)}</nav><div className="flex shrink-0 items-center gap-2"><Button variant="ghost" size="sm" onClick={onOpenAdmin} className="hidden sm:inline-flex text-xs text-muted-foreground gap-1.5"><Lock className="size-3.5" /> Admin</Button><Button className="hidden sm:inline-flex" onClick={onRegister}>Register Free <ArrowRight /></Button><Button variant="ghost" size="icon" className="lg:hidden" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</Button></div></div>{menuOpen ? <nav className="mobile-menu" aria-label="Mobile navigation">{navItems.map(([label, id]) => <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>{label}<ChevronRight /></a>)}<button className="flex items-center gap-2 p-3 text-xs text-muted-foreground" onClick={() => { setMenuOpen(false); onOpenAdmin(); }}><Lock className="size-3.5" /> Admin Dashboard</button></nav> : null}</header>;
 }
 
 function Hero({ onRegister }: { onRegister: () => void }) {
@@ -139,6 +172,6 @@ function FinalCta({ onRegister }: { onRegister: () => void }) {
   return <section className="final-cta"><div className="final-grid" aria-hidden="true" /><div className="section-shell"><span className="section-kicker section-kicker-dark">Your first AI project</span><h2>Don’t just learn about AI.<br /><span>Build with it.</span></h2><p>Join the 60-minute workshop.</p><Button size="xl" onClick={onRegister}>Reserve My Free Seat <ArrowRight /></Button></div></section>;
 }
 
-function Footer() {
-  return <footer><div className="section-shell footer-main"><Brand inverse /><nav aria-label="Footer navigation"><a href="#timeline">Workshop</a><a href="#privacy">Privacy</a><a href="#terms">Terms</a><a href={workshopConfig.brandSettings.officialWebsite} target="_blank" rel="noreferrer">NxtWave website</a></nav></div><div className="section-shell footer-bottom"><p>Workshop campaign prototype created for the NxtWave Growth Challenge.</p><p>Not an officially launched NxtWave campaign.</p></div><span id="privacy" className="sr-only">Details are used only for workshop communication in this local prototype.</span><span id="terms" className="sr-only">This prototype does not confirm workshop scheduling or official launch.</span></footer>;
+function Footer({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
+  return <footer><div className="section-shell footer-main"><Brand inverse /><nav aria-label="Footer navigation"><a href="#timeline">Workshop</a><a href="#privacy">Privacy</a><a href="#terms">Terms</a><a href={workshopConfig.brandSettings.officialWebsite} target="_blank" rel="noreferrer">NxtWave website</a>{onOpenAdmin && <button onClick={onOpenAdmin} className="text-xs text-muted-foreground hover:text-white transition-colors flex items-center gap-1 cursor-pointer"><Lock className="size-3" /> Admin Dashboard</button>}</nav></div><div className="section-shell footer-bottom"><p>Workshop campaign prototype created for the NxtWave Growth Challenge.</p><p>Not an officially launched NxtWave campaign.</p></div><span id="privacy" className="sr-only">Details are used only for workshop communication in this local prototype.</span><span id="terms" className="sr-only">This prototype does not confirm workshop scheduling or official launch.</span></footer>;
 }

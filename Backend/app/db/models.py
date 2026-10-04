@@ -24,6 +24,7 @@ class RegistrationModel(Base):
     email_verified = Column(Boolean, default=False)
     whatsapp_opt_in = Column(Boolean, default=False)
     verification_id = Column(String(64), nullable=True)
+    verification_method = Column(String(50), default="otp")
     verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, index=True)
 
@@ -32,6 +33,7 @@ class RegistrationVerificationModel(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     verification_id = Column(String(64), nullable=False, unique=True, index=True)
+    magic_token = Column(String(64), nullable=True, unique=True, index=True)
     full_name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, index=True)
     phone = Column(String(50), nullable=False)
@@ -48,6 +50,7 @@ class RegistrationVerificationModel(Base):
     otp_expires_at = Column(DateTime(timezone=True), nullable=False)
     otp_attempts = Column(Integer, default=0)
     verification_status = Column(String(50), default="pending")
+    verification_method = Column(String(50), default="otp")
     created_at = Column(DateTime(timezone=True), default=utc_now, index=True)
     verified_at = Column(DateTime(timezone=True), nullable=True)
 

@@ -35,6 +35,7 @@ class RegistrationStartResponse(BaseModel):
     success: bool = True
     already_registered: bool = False
     verification_id: str = ""
+    magic_token: Optional[str] = None
     expires_in_seconds: int = 600
     referral_code: Optional[str] = None
     message: str = "Verification code sent to email"
@@ -50,6 +51,9 @@ class OTPVerifyRequest(BaseModel):
             return v.strip()
         return v
 
+class MagicLinkVerifyRequest(BaseModel):
+    magic_token: str
+
 class RegistrationResponse(BaseModel):
     success: bool = True
     already_registered: bool = False
@@ -58,4 +62,5 @@ class RegistrationResponse(BaseModel):
     email_verified: bool = True
     whatsapp_opt_in: bool = False
     whatsapp_status: Optional[str] = None
+    verification_method: Optional[str] = "otp"
     message: str = "Registration successful"

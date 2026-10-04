@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import random
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
@@ -101,17 +102,21 @@ def create_pending_verification(db: Session, reg_in: RegistrationStartCreate) ->
         verification_record.medium = reg_in.medium
         verification_record.campaign = reg_in.campaign
         verification_record.content = reg_in.content
+        magic_token = secrets.token_hex(32)
         verification_record.referral_code = referred_by_code
         verification_record.whatsapp_opt_in = reg_in.whatsapp_opt_in
         verification_record.otp_hash = otp_hash
+        verification_record.magic_token = magic_token
         verification_record.otp_expires_at = expires_at
         verification_record.otp_attempts = 0
         verification_id = verification_record.verification_id
     else:
         # Create new pending verification record
         verification_id = str(uuid.uuid4())
+        magic_token = secrets.token_hex(32)
         verification_record = RegistrationVerificationModel(
             verification_id=verification_id,
+            magic_token=magic_token,
             full_name=reg_in.full_name,
             email=normalized_email,
             phone=reg_in.phone,
@@ -146,9 +151,9 @@ def create_pending_verification(db: Session, reg_in: RegistrationStartCreate) ->
     ))
     db.commit()
 
-    # Trigger Email Provider
+    # Trigger Email Provider with magic token
     email_provider = get_email_provider()
-    email_result = email_provider.send_otp_email(normalized_email, raw_otp)
+    email_result = email_provider.send_otp_email(normalized_email, raw_otp, magic_token=magic_token)
 
     logger.info(
         f"[OTP Service] OTP email dispatch result for '{mask_email(normalized_email)}': {email_result.detail}"
@@ -158,6 +163,7 @@ def create_pending_verification(db: Session, reg_in: RegistrationStartCreate) ->
         success=True,
         already_registered=False,
         verification_id=verification_id,
+        magic_token=magic_token,
         expires_in_seconds=OTP_EXPIRY_MINUTES * 60,
         message="Verification code sent to email"
     )
@@ -375,5 +381,164 @@ def verify_otp_and_register(db: Session, verification_id: str, otp: str) -> Regi
         email_verified=True,
         whatsapp_opt_in=verification_record.whatsapp_opt_in,
         whatsapp_status=whatsapp_status,
+        verification_method=getattr(verification_record, "verification_method", "otp") or "otp",
         message="Registration verified successfully"
+    )
+
+def verify_magic_token_and_register(db: Session, magic_token: str) -> RegistrationResponse:
+    clean_token = magic_token.strip() if magic_token else ""
+    if not clean_token or len(clean_token) < 16:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid magic verification token"
+        )
+
+    verification_record = db.query(RegistrationVerificationModel).filter(
+        RegistrationVerificationModel.magic_token == clean_token
+    ).first()
+
+    if not verification_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid or expired magic link session"
+        )
+
+    verification_record.verification_method = "magic_link"
+    normalized_email = normalize_email(verification_record.email)
+
+    # 1. REPEATED / IDEMPOTENT VERIFICATION CHECK
+    existing_reg = db.query(RegistrationModel).filter(
+        RegistrationModel.email == normalized_email
+    ).first()
+
+    if existing_reg:
+        if verification_record.verification_status == "pending":
+            verification_record.verification_status = "verified"
+            verification_record.verified_at = utc_now()
+            db.commit()
+
+        return RegistrationResponse(
+            success=True,
+            already_registered=True,
+            registration_id=str(existing_reg.id),
+            referral_code=existing_reg.referral_code,
+            email_verified=True,
+            whatsapp_opt_in=existing_reg.whatsapp_opt_in,
+            whatsapp_status="already_registered",
+            verification_method="magic_link",
+            message="You're already registered! Your seat is already booked."
+        )
+
+    now = utc_now()
+    expires_at = verification_record.otp_expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if expires_at < now:
+        verification_record.verification_status = "expired"
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Magic verification link has expired. Please request a new link."
+        )
+
+    # SUCCESS: Mark verification as verified via magic_link
+    verification_record.verification_status = "verified"
+    verification_record.verified_at = now
+
+    new_referral_code = generate_unique_referral_code(db)
+
+    new_reg = RegistrationModel(
+        full_name=verification_record.full_name,
+        email=normalized_email,
+        phone=verification_record.phone,
+        college_name=verification_record.college_name,
+        branch=verification_record.branch,
+        graduation_year=verification_record.graduation_year,
+        source=verification_record.source,
+        medium=verification_record.medium,
+        campaign=verification_record.campaign,
+        content=verification_record.content,
+        referral_code=new_referral_code,
+        referred_by=verification_record.referral_code,
+        email_verified=True,
+        whatsapp_opt_in=verification_record.whatsapp_opt_in,
+        verification_id=verification_record.verification_id,
+        verification_method="magic_link",
+        verified_at=now
+    )
+
+    try:
+        db.add(new_reg)
+        db.commit()
+        db.refresh(new_reg)
+    except IntegrityError:
+        db.rollback()
+        concurrent_reg = db.query(RegistrationModel).filter(
+            RegistrationModel.email == normalized_email
+        ).first()
+        if concurrent_reg:
+            return RegistrationResponse(
+                success=True,
+                already_registered=True,
+                registration_id=str(concurrent_reg.id),
+                referral_code=concurrent_reg.referral_code,
+                email_verified=True,
+                whatsapp_opt_in=concurrent_reg.whatsapp_opt_in,
+                whatsapp_status="already_registered",
+                verification_method="magic_link",
+                message="You're already registered! Your seat is already booked."
+            )
+        raise
+
+    # Dispatch confirmation email
+    try:
+        email_provider = get_email_provider()
+        email_provider.send_confirmation_email(new_reg.email, new_referral_code)
+    except Exception as email_err:
+        logger.error(f"[OTP Service] Failed to send confirmation email: {email_err}")
+
+    email_hash = hashlib.sha256(normalized_email.encode("utf-8")).hexdigest()
+
+    # Record analytics
+    db.add(AnalyticsEventModel(
+        event_name="magic_link_verified",
+        source=verification_record.source,
+        medium=verification_record.medium,
+        campaign=verification_record.campaign,
+        content=verification_record.content,
+        referral_code=verification_record.referral_code,
+        metadata_json={
+            "verification_id": verification_record.verification_id,
+            "email_hash": email_hash
+        }
+    ))
+
+    db.add(AnalyticsEventModel(
+        event_name="registration_completed",
+        source=verification_record.source,
+        medium=verification_record.medium,
+        campaign=verification_record.campaign,
+        content=verification_record.content,
+        referral_code=verification_record.referral_code,
+        metadata_json={
+            "registration_id": str(new_reg.id),
+            "college_name": verification_record.college_name,
+            "branch": verification_record.branch,
+            "verification_method": "magic_link",
+            "email_hash": email_hash
+        }
+    ))
+    db.commit()
+
+    return RegistrationResponse(
+        success=True,
+        already_registered=False,
+        registration_id=str(new_reg.id),
+        referral_code=new_referral_code,
+        email_verified=True,
+        whatsapp_opt_in=verification_record.whatsapp_opt_in,
+        whatsapp_status="mocked" if verification_record.whatsapp_opt_in else "skipped",
+        verification_method="magic_link",
+        message="Registration verified successfully via Magic Link"
     )
