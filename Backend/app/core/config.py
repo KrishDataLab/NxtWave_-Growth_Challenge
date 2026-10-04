@@ -9,12 +9,12 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     CORS_ORIGINS: Union[str, List[str]] = ["http://localhost:5173"]
     API_V1_STR: str = "/api/v1"
-    EMAIL_PROVIDER: str = "console"
-    SMTP_HOST: str = ""
+    EMAIL_PROVIDER: str = "smtp"
+    SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USER: str = ""
+    SMTP_USER: str = "kunchalamohank@gmail.com"
     SMTP_PASSWORD: str = ""
-    SMTP_FROM_EMAIL: str = "noreply@nxtwave.in"
+    SMTP_FROM_EMAIL: str = "kunchalamohank@gmail.com"
     SMTP_TLS: bool = True
 
     model_config = ConfigDict(
