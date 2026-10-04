@@ -18,6 +18,10 @@ if db_url.startswith("postgres://"):
 elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+"):
     db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
+if "postgresql" in db_url and "sslmode" not in db_url:
+    sep = "&" if "?" in db_url else "?"
+    db_url = f"{db_url}{sep}sslmode=require"
+
 connect_args = {}
 if db_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
