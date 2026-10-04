@@ -33,8 +33,13 @@ class BaseEmailProvider(ABC):
         """Sends verification code OTP to recipient email address."""
         pass
 
+    @abstractmethod
+    def send_confirmation_email(self, to_email: str, referral_code: str) -> EmailSendResult:
+        """Sends seat booking confirmation email to recipient after verification."""
+        pass
+
 class ConsoleEmailProvider(BaseEmailProvider):
-    """Development / Testing / Demo provider that safely logs outgoing OTP emails."""
+    """Development / Testing / Demo provider that safely logs outgoing OTP and confirmation emails."""
     def send_otp_email(self, to_email: str, otp: str) -> EmailSendResult:
         subject = "Verify your NxtWave workshop registration"
         body = (
@@ -54,6 +59,30 @@ class ConsoleEmailProvider(BaseEmailProvider):
             provider="console",
             delivered=False,
             detail="OTP logged to console/logs safely (development mode)."
+        )
+
+    def send_confirmation_email(self, to_email: str, referral_code: str) -> EmailSendResult:
+        subject = "Congratulations! Your seat is booked - NxtWave Workshop"
+        share_url = f"https://nxt-wave-growth-challenge.vercel.app/?ref={referral_code}"
+        body = (
+            "Congratulations! Your seat is booked for NxtWave's "
+            "Build Your First AI Project in 60 Minutes workshop.\n\n"
+            f"Your referral code is: {referral_code}\n\n"
+            f"Share link: {share_url}\n\n"
+            "We'll share workshop updates and access links with you here."
+        )
+
+        logger.info(
+            f"[Console Email Provider] Outgoing Confirmation Email to <{mask_email(to_email)}>:\n"
+            f"Subject: {subject}\n"
+            f"Body:\n{body}"
+        )
+
+        return EmailSendResult(
+            success=True,
+            provider="console",
+            delivered=False,
+            detail="Confirmation email logged to console/logs safely (development mode)."
         )
 
 class SMTPEmailProvider(BaseEmailProvider):
@@ -132,6 +161,66 @@ class SMTPEmailProvider(BaseEmailProvider):
                 provider="smtp",
                 delivered=False,
                 detail=f"SMTP Error: {clean_err}"
+            )
+
+    def send_confirmation_email(self, to_email: str, referral_code: str) -> EmailSendResult:
+        host = settings.SMTP_HOST or "smtp.gmail.com"
+        port = settings.SMTP_PORT or 587
+        user = settings.SMTP_USER or "kunchalamohank@gmail.com"
+        from_email = settings.SMTP_FROM_EMAIL or user
+        password = settings.SMTP_PASSWORD or ""
+        has_password = bool(password and len(password.strip()) > 0)
+
+        if not has_password:
+            logger.warning("[SMTP Diagnostic] SMTP_PASSWORD is not set in environment variables!")
+            return EmailSendResult(
+                success=False,
+                provider="smtp",
+                delivered=False,
+                detail="SMTP_PASSWORD missing in Vercel Environment Variables."
+            )
+
+        subject = "Congratulations! Your seat is booked - NxtWave Workshop"
+        share_url = f"https://nxt-wave-growth-challenge.vercel.app/?ref={referral_code}"
+        body = (
+            "Congratulations! Your seat is booked for NxtWave's "
+            "Build Your First AI Project in 60 Minutes workshop.\n\n"
+            f"Your referral code is: {referral_code}\n\n"
+            f"Share link: {share_url}\n\n"
+            "We'll share workshop updates and access links with you here."
+        )
+
+        msg = MIMEMultipart()
+        msg["From"] = from_email
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        try:
+            with smtplib.SMTP(host, port, timeout=12) as server:
+                server.ehlo()
+                if settings.SMTP_TLS:
+                    server.starttls()
+                    server.ehlo()
+                if user and password:
+                    server.login(user, password)
+                server.sendmail(from_email, [to_email], msg.as_string())
+
+            logger.info(f"[SMTP Diagnostic] SUCCESS: Seat booking confirmation email delivered to <{mask_email(to_email)}> via {host}:{port}")
+            return EmailSendResult(
+                success=True,
+                provider="smtp",
+                delivered=True,
+                detail=f"Confirmation email accepted by {host}:{port}"
+            )
+        except Exception as err:
+            clean_err = str(err).replace(password, "***") if password else str(err)
+            logger.error(f"[SMTP Diagnostic] Confirmation Email ERROR: {clean_err}")
+            return EmailSendResult(
+                success=False,
+                provider="smtp",
+                delivered=False,
+                detail=f"SMTP Confirmation Email Error: {clean_err}"
             )
 
 def get_email_provider() -> BaseEmailProvider:

@@ -231,6 +231,13 @@ def verify_otp_and_register(db: Session, verification_id: str, otp: str) -> Regi
     db.commit()
     db.refresh(new_reg)
 
+    # Dispatch confirmation email to user upon successful OTP verification
+    try:
+        email_provider = get_email_provider()
+        email_provider.send_confirmation_email(new_reg.email, new_referral_code)
+    except Exception as email_err:
+        logger.error(f"[OTP Service] Failed to send confirmation email to '{new_reg.email}': {email_err}")
+
     # Record analytics: otp_verified
     db.add(AnalyticsEventModel(
         event_name="otp_verified",
