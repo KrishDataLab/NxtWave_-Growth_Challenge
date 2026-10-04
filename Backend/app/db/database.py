@@ -13,14 +13,26 @@ db_url = (
     or settings.DATABASE_URL
 )
 
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
-elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+"):
-    db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+def format_db_url(raw_url: str) -> str:
+    url = raw_url
+    if url.startswith("postgres://") or url.startswith("postgresql://"):
+        if "postgresql+" not in url:
+            try:
+                import psycopg2
+                driver = "postgresql+psycopg2://"
+            except ImportError:
+                driver = "postgresql+pg8000://"
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", driver, 1)
+            elif url.startswith("postgresql://"):
+                url = url.replace("postgresql://", driver, 1)
+        if "postgresql" in url and "sslmode" not in url:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}sslmode=require"
+    return url
 
-if "postgresql" in db_url and "sslmode" not in db_url:
-    sep = "&" if "?" in db_url else "?"
-    db_url = f"{db_url}{sep}sslmode=require"
+db_url = format_db_url(db_url)
+
 
 connect_args = {}
 if db_url.startswith("sqlite"):

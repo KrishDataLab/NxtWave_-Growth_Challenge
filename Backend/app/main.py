@@ -12,11 +12,7 @@ from app.api import api_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nxtwave_growth_backend")
 
-# Safely initialize database schema
-try:
-    init_db_schema()
-except Exception as e:
-    logger.warning(f"Database schema initialization notice: {e}")
+
 
 app = FastAPI(
     title="NxtWave Growth Challenge API",
